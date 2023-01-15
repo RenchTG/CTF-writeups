@@ -136,7 +136,7 @@ I will say this image is pretty tough. There weren't any distinctive clues I was
 
 ### Ending note: 
 
-I do want to say an important part of this challenge was the flag that was being created throughout the challenge. One tactic that I think would help is compiling all of your guesses into a list and viewing your resulting flag. We were still missing about 4-5 countries at some point and my teammate threw out a guess: "Maybe it spells Break_my_spacebar". We laughed at the guess at first, but it ended up being only one letter off. So if you had situations like Ukriane vs Poland or Canada vs USA, compiling such a list and seeing words form can help you fill in the final gaps of 2 or 3 countries.
+I do want to say an important part of this challenge was the flag that was being created throughout the challenge. One tactic that I think would help is compiling all of your guesses into a list and viewing your resulting flag. We were still missing about 4-5 countries at some point and my teammate threw out a guess: "Maybe it spells Break_my_spacebar". We laughed at the guess at first, but it ended up being only one letter off. So if you had situations like Ukraine vs Poland or Canada vs USA, compiling such a list and seeing words form can help you fill in the final gaps of 2 or 3 countries.
 Anyways I hope this writeup helped you. If so or you see any issues with this writeup please dm me at Rench#9671 on Discord. Thanks for reading!
 
-#### Flag: idekCTF{BReAK_me_sPaCEBaR}
+#### Flag: idek{BReAK_me_sPaCEbaR}
