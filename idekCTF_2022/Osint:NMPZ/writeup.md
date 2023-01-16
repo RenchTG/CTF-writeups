@@ -142,7 +142,7 @@ Now let's GeoGuessr some images!
 ![14](https://user-images.githubusercontent.com/91157382/212569887-b0a392c0-c015-41ff-9086-0834cbebfe0f.png)
 
 * From first glance this reminded me of South America or something like Indonesia. But we can actually see the truck is driving on the right side, so this must be South America. Additionally, the road name has an accented i that is seen in Spanish or Portuguese which further confirms South America. The black on yellow chevrons can help narrow it down even further with geohints. The final clue for me was the orange/red license plate that is mentioned in the random GeoGuessr tips and tricks article which tells us it must be Ecuador.
-* Chal Author Notes: License plate, driving direction, nature. The red licence plate is a thing in Ecuador for utility vehicles. Chevron maps help as well.
+* Chal Author Notes: License plate, driving direction, nature. The red licence plate is a thing in Ecuador for service vehicles. Chevron maps help as well.
 * Ecuador = E
 
 ### Image 15:
