@@ -50,7 +50,7 @@ After doing a bit of research, I found that these were all different unicode cha
 * e280ac = Pop Directional Formatting [U+202C]
 * efbbbf = Byte Order Mark [U+FEFF]
 
-These unicode characters are commonly used to encode messages using Zero-Width Stegonography, named after the unicode characters themselves. Eventually I stumbled upon a similar writeup: https://ctftime.org/writeup/11321 which linked to an amazing tool found here: https://330k.github.io/misc_tools/unicode_steganography.html. The list of possible zero width characters had all of the four I found in secret.txt, but the website was a bit finnicky and I opted to just use the JS library they link at the top.
+These unicode characters are commonly used to encode messages using Zero-Width Stegonography. Eventually I stumbled upon a similar writeup here: https://ctftime.org/writeup/11321 which linked to an amazing tool found here: https://330k.github.io/misc_tools/unicode_steganography.html. The list of possible zero width characters had all of the four I found in secret.txt, but the website was a bit finnicky and I opted to just use the JS library they link at the top.
 
 Eventually, I created a simple JS script to decode the flag, copying the text directly from secret.txt and only removing the newlines:
 ```js
