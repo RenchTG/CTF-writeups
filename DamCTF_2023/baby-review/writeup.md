@@ -22,7 +22,7 @@ Opening the binary with Ghidra we can start looking through key functions for vu
 
 ![image](https://user-images.githubusercontent.com/91157382/232238152-89bf9a87-5de0-4e4f-8cc4-222651235413.png)
 
-The main function just seems to ask the user to provide the capital of a country the program provides from countries.txt. Nothing looks vulnerable here though with properly sized buffers and we can't control countries.txt, so this just seems like an additional step we have to do at the start of any of our solutions. Then, main calls menu which seems to be the more important function we should be concerned about.
+The main function just seems to ask the user to provide the capital of a random country the program pulls from countries.txt. Nothing looks vulnerable here though with properly sized buffers and we can't control countries.txt, so this just seems like an additional step we have to do at the start of any of our solutions. Then, main calls menu which seems to be the more important function we should be concerned about.
 
 ![image](https://user-images.githubusercontent.com/91157382/232238330-2be1b809-e2e5-4383-a1c7-16f54529dc09.png)
 
@@ -34,7 +34,7 @@ Our first option is quite underwhelming as it simply prints two strings that we 
 
 ![image](https://user-images.githubusercontent.com/91157382/232238546-fb78697d-7028-4e31-b7e5-462e8b3aab3c.png)
 
-Ah now this functions looks much more vulnerable. Initially it prints some strings like the previous method, but then runs a seemingly unrestricted printf on a char array that is defined in menu with a size of 303. If any of the other functions gives us control of what goes into this variable, this would become a simple printf vulnerability challenge. But let's keep going.
+Ah now this functions looks much more vulnerable. Initially it prints some strings like the previous method, but then runs a seemingly unrestricted printf on a char array that is defined in menu with a size of 303. If any of the other functions give us control of what goes into this variable, this would become a simple printf vulnerability challenge. But let's keep going.
 
 ![image](https://user-images.githubusercontent.com/91157382/232238684-47b7d9d9-afbb-498b-9601-6633451bd8a4.png)
 
@@ -42,7 +42,7 @@ This is another not very helpful function. It does read some input from the user
 
 ![image](https://user-images.githubusercontent.com/91157382/232238786-b8b0588a-4ee7-4058-aaf2-e3e541cde0cf.png)
 
-Our fourth option is quite interesting as it doesn't call another function and does everything inside of menu. This option promptly ends the program after returning, but it does take some user input before returning. The user is able to input 0x30 bytes into a buffer of that has a size of 32 bytes. This means we have 16 bytes of overflow. 
+Our fourth option is quite interesting as it doesn't call another function and does everything inside of menu. This option promptly ends the program by returning in menu, but it does take some user input before it does so. The user is able to input 0x30 bytes into a buffer of size 32 bytes. This means we have 16 bytes of overflow. 
 
 ![image](https://user-images.githubusercontent.com/91157382/232238969-fe59fc5e-5a16-48e1-abfb-32247222d314.png)
 
@@ -54,15 +54,15 @@ Ah here it is. We finally have a way to control what is being printf'ed in watch
 
 During the CTF I was stumped here as I thought without %n, my only options left were leaking addresses and the small exit overflow which wouldn't be enough to exploit anything critical. However, coming back after the CTF ended I learned about two methods to solve this:
 1. Some people had the same thinking as I did that printf could only be used for leaking, but they were able to find creative ways to exploit the exit option such as this great writeup here which uses stack pivoting: https://rektedekte.github.io/CTF-writeups/DamCTF%202023/baby-review/.
-2. However, another method I realized is that the check for '%n' does very little. There are two major ways I know to work around this. 
-   * The first is actually quite simple, %n works just like other format strings in the sense that it can be modified for more accuracy. For example, if you want to access the 29th pointer in memory, you don't need a payload of 29 %p's, instead you can just use %29$p. %n works in a similar way that you can break it up to be %29$n, this isn't a realistic example, but hopefully you get the idea.
-   * The second workaround is something called "length modifiers". The %n option can be modified to be %hn and %hhn in order to only write a specified amount of bytes at the target address. This is better explained in this article: https://medium.com/swlh/binary-exploitation-format-string-vulnerabilities-70edd501c5be, but essentially we can opt for using more %hn's which will bypass the check and only lengthen our payload, but we have a space of 300 characters to work with so length isn't an issue at all.
+2. However, another method I realized is that the check for '%n' is quite ineffective. There are two major ways I know to work around this. 
+   * The first is actually quite simple, %n works just like other format strings in the sense that it can be modified to target specific addresses. For example, if you want to access the 29th pointer in memory, you don't need a payload of 29 %p's, instead you can just use %29$p. %n works in a similar way that you can break it up to be %29$n, this isn't a realistic example, but hopefully you get the idea. As long as our payload doesn't exactly have %n, but it is broken up using this method we easily pass the check.
+   * The second workaround is something called "length modifiers". The %n option can be modified to be %hn and %hhn in order to only write a specified amount of bytes at the target address. This is better explained in this article: https://medium.com/swlh/binary-exploitation-format-string-vulnerabilities-70edd501c5be, but essentially we can opt for using more %hn's which will bypass the check and only lengthen our payload, but we have a space of 300 characters to work with, so length isn't an issue at all.
 
-Knowing this I opted to try and solve this using the common method of overwriting the GOT to pop a shell. Using this method everything is possible simply by using the two methods: watch_movie() and add_movie() to write to the buffer and then printf it for both leaks and overwriting addresses.
+Knowing this I opted to try and solve this challenge using the common method of overwriting the Global Offset Table (GOT) to pop a shell. Using this method, we only need to utilize the two functions: watch_movie() and add_movie() to write to the buffer and then printf it for both leaks and overwriting addresses.
 
 # Solution:
 
-To start we need two leaks. One to get the base address of the binary and one for the base address of the libc. We need these two because getting the base of the binary helps us find the address of all GOT functions allowing us to overwrite any we want. Then the base of libc allows us to find the address of system which will allow us to call system('/bin/sh') and pop a shell.
+To start we need two leaks, one to get the base address of the binary and one for the base address of the libc. We need these two because getting the base of the binary helps us find the address of all GOT functions allowing us to overwrite any we want. Then the base of libc allows us to find the address of system which will allow us to replace a function in the GOT with system(), call it with the parameter '/bin/sh', and pop a shell.
 
 To find good addresses for leaking is just a lot of trial and error. I also temporarily disabled ASLR when doing this to make the process a little easier. I used a leak.py script that printed the first 50 pointers in memory. I got a list of 50 and cleaned it up to remove any that were nil or just not accessible addresses. My cleaned up list was:
 ```
@@ -87,17 +87,17 @@ Offset 44: 0x555555556375
 Offset 45: 0x7ffff7e0a02a
 Offset 49: 0x7fffffffdd40
 ```
-The addresses starting with 0x7f were usually in the libc while addresses starting with 0x55 were in the binary. For each of these addresses I would simply run `x/s address` to see what was at that address. Going through the libc ones first I eventually found offset 29 was quite convenient as it pointed exactly to the address of the function `_IO_2_1_stdout_`.
+The addresses starting with 0x7f were usually in the libc while addresses starting with 0x55 were in the binary. For each of these addresses I would simply run `x/s address` to see what was at that address. Going through the libc ones first, I eventually found offset 29 was quite convenient as it pointed exactly to the address of the function `_IO_2_1_stdout_` in the libc.
 
-![image](https://user-images.githubusercontent.com/91157382/232246600-e570e50f-86ef-4d28-8a1f-751b6fa1763d.png)
+![image](https://user-images.githubusercontent.com/91157382/232250705-7c369473-49bb-4e6a-a89c-e62e201d2ce0.png)
 
-This is convenient as in our pwntools script we will just be able to subtract the location of `_IO_2_1_stdout_` in our provided libc file from our leak and we will get the base of our libc.
+This is convenient as in our pwntools script we will just be able to subtract the location of `_IO_2_1_stdout_` in our provided libc file from our leak and we will get our libc base address.
 
 Next for the base address of the binary I ended up using the very first possible address at offset 9 as it pointed to the address of menu+198, so this is again simple to find the base address of the binary again with pwntools. All we have to do is subtract the location of menu in our binary and subtract 198 to get the base of our binary.
 
-![image](https://user-images.githubusercontent.com/91157382/232246879-7c094640-85c6-4a76-9b7b-24d4e7a48434.png)
+![image](https://user-images.githubusercontent.com/91157382/232250772-7c6976be-610d-4d30-b46b-b80cb5f15503.png)
 
-Now I started to build the script and double-checked to make sure the addresses my script was generating would match up with the base addresses by attaching gdb and running `info proc map`. I also re-enabled ASLR to ensure it works dynamically too.
+Now I started to build my solve script and double-checked to make sure the base addresses my script was generating would match up with the true base addresses by attaching gdb and running `info proc map`. I also re-enabled ASLR to ensure this worked dynamically.
 ```python
 from pwn import *
 
@@ -138,26 +138,27 @@ p.interactive()
 
 ![image](https://user-images.githubusercontent.com/91157382/232248132-d6498cdc-b531-4063-908c-c247c8ed66d4.png)
 
-Great, leaking addresses is working perfectly, now we can move onto the next step, overwriting the GOT.
+Leaking addresses is working perfectly! Now we can move onto the next step, overwriting the GOT.
 
-Before overwriting anything we need to figure out which function in the GOT to overwrite. I know I want system() from the libc to be called, but what function would work best to replace with system. Because we are trying to pass the parameter /bin/sh we usually want to choose a function in the GOT that is run with only a single parameter and we have control over that parameter. In this case there is no simple gets or puts, but if you think about it there is a function that takes in our input as a parameter and we have already been using it. Printf!
+Before overwriting anything we need to figure out which function in the GOT to overwrite. I know I want system() from the libc to be called, but what function would work best to replace with system. Because we are trying to pass the parameter '/bin/sh' we usually want to choose a function in the GOT that is run with only a single parameter and we have control over that parameter. In this case there is no simple gets or puts, but if you think about it, there is a function that takes in our input as a single parameter and we have already been using it. Printf!
 
-That's right, printf is in the GOT, so if we overwrite it with system, we can simply call add_movie again, input /bin/sh as our text. Then once we call watch_movie, it won't print /bin/sh, but instead call system and pass it one parameter, which will be our input of /bin/sh.
+That's right, printf is in the GOT, so if we overwrite it with system, we can simply call add_movie again, input '/bin/sh' as our text. Then once we call watch_movie, it won't printf our input, but instead call system and pass '/bin/sh' as a paremeter which will pop a shell.
 
 The last part to figure out is how to use %n and its variations to overwrite the GOT entry for printf with system. Well pwntools has a neat function called fmtstr_payload. I was not aware of the function during the CTF, but now that I know about it, this is definitely a must have for any printf vulnerability challenge. In order to understand it and its parameters better I will show the pwntools documentation entry about it. If you'd like to read more about it or see some examples you can find them here: https://docs.pwntools.com/en/stable/fmtstr.html.
 
 ![image](https://user-images.githubusercontent.com/91157382/232249177-c497f13e-63e6-42c6-bfd9-05102220f1bd.png)
 
-So this function takes three necessary parameters: offset and writes. We don't need to worry about numbwritten in our case as it is good with the default of 0 and write_size refers to the length modifiers I mentioned earlier, preferably we should keep this at byte or short to use %hhn and %hn respectively, but we can keep this parameter at the default write size of byte as it is ok if our payload is a little longer.
+So this function takes two necessary parameters: offset and writes. We don't need to worry about numbwritten in our case as it is good with the default of 0 and write_size refers to the length modifiers I mentioned earlier, preferably we should keep this at byte or short to use %hhn and %hn respectively to bypass the %n check, but we can keep this parameter at the default write size of byte as it is fine if our payload is a little longer.
+
 To figure out what our offset parameter should be, we need to input some characters and read memory in the same payload and find at what offset we first start to see our characters.
 
 ![image](https://user-images.githubusercontent.com/91157382/232249609-5502f641-206b-4872-a1d1-1f074dc0d463.png)
 
-This is quite easy to do and requires no scripting you can just run the binary on its own. We see our A's or 0x41 in hex starts to appear at the 10th offset first. So offset will be 10 in our script.
+This is quite easy to do and requires no scripting you can just run the binary on its own. We see our A's or 0x41 in hex starts to appear at the 10th offset first. So our offset parameter will be 10 in our script.
 
 The next parameter writes is simply a dictionary with the format {address: value} of what we want to overwrite. So, we want to overwrite the GOT entry for printf which can be easily found with pwntools like so: `elf.got['printf']` and we want to overwrite it with the address of system in our libc file which can be found like like this: `libc.symbols['system']`.
 
-We now have everything we need and just have to put it all together in a script. To the end of the script to find leaks I added:
+We now have everything we need and just have to put it all together in a script. I added the following to the end of my previous leaks script:
 ```python
 elf.address = binBase
 libc.address = libcBase
@@ -187,7 +188,7 @@ Now when I run the script I should get a shell! But instead, I got an error :(
 
 ![image](https://user-images.githubusercontent.com/91157382/232249881-16702e65-bc81-4432-a4df-c01ffd49e9c9.png)
 
-This error was quite annoying to debug, but I knew something was wrong with my call to fmtstr_payload so I looked back at the documentation and read the first sentence: "Makes payload with given parameter. It can generate payload for 32 or 64 bits architectures. The size of the addr is taken from `context.bits`". Looking through more pwntools documentation I found the default of context.bits is set to 32, but our binary is 64 bit which was causing the error.
+This error was quite annoying to debug, but I knew something was wrong with my call to fmtstr_payload so I looked back at the documentation and read the following: "It can generate payload for 32 or 64 bits architectures. The size of the addr is taken from `context.bits`". Looking through more pwntools documentation I found the default of context.bits is set to 32, but our binary is 64 bit which was causing the error.
 
 ![image](https://user-images.githubusercontent.com/91157382/232249985-2a252810-ccf4-479e-9d5a-27e2f3db2739.png)
 
@@ -199,6 +200,6 @@ we can run:
 ```python
 elf = context.binary = ELF('./baby-review',checksec=False)
 ```
-Now context.binary will be set to our binary which will automatically update many values of context, including context.bits for us. Now that I figured out the error I ran it again and voila we get our flag!
+Now context.binary will be set to our binary which will automatically update many values of context for us, including context.bits. Now that I figured out the error I ran it again and we get our shell and the flag!
 
 ![image](https://user-images.githubusercontent.com/91157382/232250085-1e477d91-a630-45df-b62e-684def691996.png)
