@@ -2,14 +2,11 @@ from pwn import *
 
 elf = context.binary = ELF('./baby-review',checksec=False)
 libc = ELF('libc.so.6',checksec=False)
-#p = process(elf.path)
-#gdb.attach(p)
 p = remote('0.0.0.0',32768)
 
 p.recvline()
 print(p.recvline().decode())
 capital = input()
-#capital = "Paris"
 p.sendline(capital.encode('utf-8'))
 
 p.clean()
