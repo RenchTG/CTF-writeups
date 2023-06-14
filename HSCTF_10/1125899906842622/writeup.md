@@ -12,7 +12,7 @@
 
 # Recon: 
 
-To begin we are given a very brief python script. I will just send it in its entirety as it is so brief.
+To begin we are given a very brief python script. Here it is in its entirety.
 
 ```python
 a = int(input())
@@ -43,7 +43,7 @@ So the program takes in a number from us which then determine what operations ha
 * Divide b by 2
 * Divide by by 1125899906842624
 
-Using these 4 operations we are trying to get the number b, which starts at 1, to reach 4. The final and biggest obstacle is that after every one of our four operations, the result of b bitwise-and c is multiplied by 1125899906842622 and added back to b. This operation becomes very annoying as whenever b&c isn't equal to 0, b changes by an incredible amount and essentially becomes uncontrollable to be back on track to get to 4 with our limited operations. So, using our 4 operations we want b to reach 4 and avoid b&c equaling a nonzero number whenever possible.
+Using these 4 operations we are trying to get the number b, which starts at 1, to reach 4. The final and biggest obstacle is that after every one of our four operations, the result of b bitwise AND c is multiplied by 1125899906842622 and added back to b. This operation becomes very annoying as whenever b&c isn't equal to 0, b changes by an incredible amount and essentially becomes uncontrollable to be back on track to get to 4 with our limited operations. So, using our 4 operations we want b to reach 4 and avoid b&c equaling a nonzero number whenever possible.
 
 From here if done right, the problem is solvable simply using something like dfs and pruning correctly to avoid times when b&c != 0, repeating moves, etc. However, I believe there is a more elegant solution that requires an important observation that may not be immediately obvious to some. At first the only additional thing I could come up with is that the other number that b can be multiplied/divided by of 1125899906842624 is actually 2^50. So now we have b which starts at 2^0=1, we want to reach 2^2=4, we can multiply and divide by 2^1 or 2^50 however we choose. Breaking it into powers of two is very important in understanding what is really happening in this challenge.
 
@@ -57,17 +57,17 @@ To visualize this idea I made a simple game in python. I have included the file 
 
 ![image](https://github.com/RenchTG/CTF-writeups/assets/91157382/52903601-8053-434c-9534-fcb70039b257)
 
-This is the starting position of our game. As you can see we can't simply go 1 bit to the right twice as the 1 blocks our way. However we can see there is a long sled of 0s that if we reached we could simply move left until we reached the third to last position. Also note the number in binary is reversed as it just seemed more logically to me when playing around with the game, but it is important to understand that realistically we start at the very end of the number.
+This is the starting position of our game. As you can see we can't simply go 1 bit to the right twice as the 1 blocks our way. However we can see there is a long sled of 0s that if reached would allow us to move left until we reached the third to last position. Also note the number in binary is reversed as it just seemed more logically to me when playing around with the game, but it is important to understand that realistically we start at the very end of the number.
 
 So as our first move we are forced to move right 50:
 
 ![image](https://github.com/RenchTG/CTF-writeups/assets/91157382/c2f32da1-f942-4cc2-afec-86e87b6de4b4)
 
-However we are again stuck between 1's and must move again 50. This will repeat until you find pockets of 0's as shown below:
+However we are again stuck between 1's and must move to the right by 50. This will repeat until you find pockets of 0's as shown below:
 
 ![image](https://github.com/RenchTG/CTF-writeups/assets/91157382/c6d87524-817d-4144-9b66-6e48efaa8f71)
 
-However, this is where I realized winning this game manually was going to be a challenge. The first few moves are forced, but eventually the amount of paths branch out just like a maze, however sometimes there are 4 possible paths at once and keeping track at which ones continue and which ones end becomes a great challenge. So time to write a script to solve it for us. However now this will be very easy as we understand exactly what is happening now that we've visualized it from the maze perspective.
+However, this is where I realized winning this game manually was going to be a challenge. The first few moves are forced, but eventually the amount of paths branch out just like a maze and sometimes there are so many possible paths at once that keeping track of which ones continue and which ones end becomes impossible to manage. So time to write a script to solve it for us. However now this will be very easy to write as we understand exactly what is happening now that we've visualized it from the maze perspective.
 
 For this I used dfs as I am familiar with it and it is very easy to implement.
 
@@ -114,25 +114,44 @@ def dfs(pos,moves):
 dfs(0,'r')
 ```
 
-There are 3 main sections of my dfs function. The first section checks the last move inputted and moves our bit accordingly if possible. If the move would result in colliding with a 1, the function immediately returns as this is not a possible move. The next section is our base case, if we have successfully reached our goal and our bit is in the second position, so 2^2 = 4 we print the moves used to reach there and return. The final section calles the function recursively with all 4 possible moves. I added additional if statements as after debugging I realized some branches would be stuck undoing the move just made so going left-right-left-... forever. These checks make sure that every iteration a new move must be made and no infinite loops occur.
+There are 3 main sections of my dfs function. The first section checks the last move inputted and moves our bit accordingly if possible. If the move would result in colliding with a 1, the function immediately returns as this is not a possible move. The next section is our base case, if we have successfully reached our goal and our bit is in the second position, so 2^2 = 4 we print the moves used to reach there and return. The final section calles the function recursively with all 4 possible moves. I added additional if statements as after debugging I realized some branches would be stuck undoing the move just made so going left-right-left-... forever. These checks ensure that every iteration a new move must be made and no infinite loops occur.
 
-Running this script gives me a solution to our maze almost insantly. The correct order of moves is: `rrrreeeerrrrrreerrwwwwqqwwrrrrrrrrrrrreeeerreeeeeeeeeerrrreerreerreeqqeerreerrwwrrrrrreeeeeerreeeerrwwrrrreeeeeeeeqqwwqqeeeeeeqqqqqqeeeerrrrrrrrrrreeqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww`. However we must remember the script given takes in a number `a` as input and not instructions. This had me worried at first, but looking back at the script every iteration only the last two bits of our input number matters. The operation a&1 only checks if the last bit is 0 or 1 and a&2 does the same but for the second to last bit. Then the 2 possibilites for each if statment give us a total of 4 operations every iteration. Finally, after every iteration, the operation `a //= 4` occurs. 
-However, if we remember to frame this problem in terms of binary, just like `b //= 1125899906842624` is equivalent to `b >> 50`, the operation `a //= 4` is equivalent to `b >> 2`. So every iteration we check the last two bits of a then remove the last two bits of a, and the pattern repeats. This makes it very easy for us to reconstruct our input based off our moves given by our previous script.
+Running this script gives me a solution to our maze almost insantly. The correct order of moves is: 
 
-To translate our game moves to a binary string I 
+`rrrreeeerrrrrreerrwwwwqqwwrrrrrrrrrrrreeeerreeeeeeeeeerrrreerreerreeqqeerreerrwwrrrrrreeeeeerreeeerrwwrrrreeeeeeeeqqwwqqeeeeeeqqqqqqeeeerrrrrrrrrrreeqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww`
 
+However we must remember the script given takes in a number `a` as input and not instructions. This had me worried at first, but looking back at the script, at every iteration only the last two bits of our input number matter. The operation a&1 only checks if the last bit is 0 or 1 and a&2 does the same but for the second to last bit. Then, the 2 possibilites for the 2 if statments give us a total of 4 possible operations every iteration. Finally, after every iteration, the operation `a //= 4` occurs. However, if we remember to frame this problem in terms of binary, just like `b //= 1125899906842624` is equivalent to `b >> 50`, the operation `a //= 4` is equivalent to `a >> 2`. So, every iteration we check the last two bits of a then remove the last two bits of a, and this pattern repeats. This makes it very easy for us to reconstruct our input based off our moves given by our previous script.
 
+To translate our game moves to a binary string I went back to the script to determine which bits have to be set to make which move and I ended up with the following:
+* q = a&2 > 0 and a&1 > 0 = 11
+* w = a&2 == 0 and a&1 > 0 = 01
+* e = a&2 == 0 and a&1 == 0 = 00
+* r = a&2 > 0 and a&1 == 0 = 10
 
+I quickly implemented this into a script to generate our correct input a.
+```python
+ops = 'rrrreeeerrrrrreerrwwwwqqwwrrrrrrrrrrrreeeerreeeeeeeeeerrrreerreerreeqqeerreerrwwrrrrrreeeeeerreeeerrwwrrrreeeeeeeeqqwwqqeeeeeeqqqqqqeeeerrrrrrrrrrreeqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww'
+binary = ''
 
+for i in ops[::-1]:
+    if i == 'w':
+        binary += '01'
+    elif i == 'r':
+        binary += '10'
+    elif i == 'e':
+        binary += '00'
+    elif i == 'q':
+        binary += '11'
 
+print(int(binary,2))
+```
 
+This gave me the number:
 
+`266389209626964670411229630383277269677501566076407503706285515444076594421701235243486016983041387987424513152591848742324465668841041551073869994`
 
+Inputting this into the original script provided prints: `50937517511040739473747084954399628437899554758014667643591355768086908816264879291316093` and the program terminates. This means we have provided the correct input. I intially tried submitting this number as the flag, but it turned out to just need the good ol' l2b to finish the job.
 
+![image](https://github.com/RenchTG/CTF-writeups/assets/91157382/4d8702dc-57dd-43d3-bad0-d2574eebad3f)
 
-
-
-
-
-
-
+There's our flag! This was definitely a very fun challenge and although this could probably be solved naively with dfs from the start I think the binary maze perspective makes it a much more interesting solve.
